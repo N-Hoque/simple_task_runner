@@ -6,6 +6,7 @@
 #ifndef TASK_RUNNER_H
 #define TASK_RUNNER_H
 
+#include <cstdlib>
 #include <array>
 #include <vector>
 #include <future>
