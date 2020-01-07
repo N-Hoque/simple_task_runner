@@ -1,3 +1,8 @@
+/*
+ * Author: Naimul Hoque (Naimul_Hoque@outlook.com)
+ * Date Created: 7th January 2020
+ */
+
 #ifndef TASK_RUNNER_H
 #define TASK_RUNNER_H
 
