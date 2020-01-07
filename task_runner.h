@@ -38,6 +38,9 @@ public:
 		}
 	}
 
+	/*
+	 * Sets the tasks here. This is for runtime task setup
+	 */
 	void set_tasks_dynamic(const std::vector<std::function<TFunction>> &functions)
 	{
 		for (auto i = 0ULL; i < NUM_OF_TASKS; i++)
@@ -47,6 +50,10 @@ public:
 		}
 	}
 
+	/*
+	 * This runs all the tasks. Tasks must have been set up before
+	 * running this method.
+	 */
 	template<typename... TArgs>
 	void run_tasks(TArgs... args)
 	{
@@ -57,11 +64,17 @@ public:
 		}
 	}
 
+	/*
+	 * Returns an array of futures after running the tasks.
+	 */
 	std::array<std::future<TReturn>, NUM_OF_TASKS> get_futures()
 	{
 		return m_futures;
 	}
 
+	/*
+	 * Returns the results of the futures after running the tasks.
+	 */
 	std::array<TReturn, NUM_OF_TASKS> get_results()
 	{
 		for (auto i = 0ULL; i < NUM_OF_TASKS; i++)
@@ -72,6 +85,10 @@ public:
 		return m_results;
 	}
 
+	/*
+	 * Reduces the results into a single value after running the tasks.
+	 * Do not run get_results and this method together, otherwise an error will occur.
+	 */
 	TReturn reduce_results()
 	{
 		TReturn reduced_result{};
@@ -84,6 +101,11 @@ public:
 		return reduced_result;
 	}
 
+	/*
+	 * Reduces the results into a single value after running the tasks.
+	 * This uses a custom combine function for reducing the results.
+	 * Do not run get_results and this method together, otherwise an error will occur.
+	 */
 	TReturn reduce_results(TReturn(*combine)(TReturn, TReturn))
 	{
 		TReturn reduced_result{};
