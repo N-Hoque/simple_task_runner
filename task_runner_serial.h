@@ -3,33 +3,27 @@
  * Date Created: 7th January 2020
  */
 
-#ifndef TASK_RUNNER_H
-#define TASK_RUNNER_H
+#ifndef TASK_RUNNER_SERIAL_H
+#define TASK_RUNNER_SERIAL_H
 
+#include <cstdlib>
+#include <functional>
 #include <array>
 #include <vector>
-#include <future>
-#include <thread>
-#include <functional>
-#include <type_traits>
 
-/*
- * A class for running multiple tasks on multiple threads
- * that have the same function signature.
- */
-template<class TFunction, size_t NUM_OF_TASKS>
-class task_runner
+ /*
+  * A class for running multiple tasks sequentially.
+  */
+template<class TFunction, std::size_t NUM_OF_TASKS>
+class task_runner_serial
 {
 private:
 	using TReturn = typename std::function<TFunction>::result_type;
 
-	std::array<std::packaged_task<TFunction>, NUM_OF_TASKS> m_tasks;
-	std::array<std::future<TReturn>, NUM_OF_TASKS> m_futures;
-	std::array<std::thread, NUM_OF_TASKS> m_threads;
+	std::array<std::function<TFunction>, NUM_OF_TASKS> m_tasks;
 	std::array<TReturn, NUM_OF_TASKS> m_results{};
-
 public:
-	task_runner() = default;
+	task_runner_serial() = default;
 
 	/*
 	 * Sets the tasks here. This is for compile-time task setup
@@ -38,8 +32,7 @@ public:
 	{
 		for (std::size_t i{}; i < NUM_OF_TASKS; i++)
 		{
-			m_tasks[i] = std::packaged_task<TFunction>(functions[i]);
-			m_futures[i] = m_tasks[i].get_future();
+			m_tasks[i] = std::function<TFunction>(functions[i]);
 		}
 	}
 
@@ -50,8 +43,7 @@ public:
 	{
 		for (std::size_t i{}; i < NUM_OF_TASKS; i++)
 		{
-			m_tasks[i] = std::packaged_task<TFunction>(functions[i]);
-			m_futures[i] = m_tasks[i].get_future();
+			m_tasks[i] = std::function<TFunction>(functions[i]);
 		}
 	}
 
@@ -64,29 +56,15 @@ public:
 	{
 		for (std::size_t i{}; i < NUM_OF_TASKS; i++)
 		{
-			m_threads[i] = std::thread(std::move(m_tasks[i]), args...);
-			m_threads[i].join();
+			m_results[i] = m_tasks[i](args...);
 		}
 	}
 
 	/*
-	 * Returns an array of futures after running the tasks.
-	 */
-	std::array<std::future<TReturn>, NUM_OF_TASKS> get_futures()
-	{
-		return m_futures;
-	}
-
-	/*
-	 * Returns the results of the futures after running the tasks.
+	 * Returns the results after running the tasks.
 	 */
 	std::array<TReturn, NUM_OF_TASKS> get_results()
 	{
-		for (std::size_t i{}; i < NUM_OF_TASKS; i++)
-		{
-			m_results[i] = m_futures[i].get();
-		}
-
 		return m_results;
 	}
 
@@ -100,7 +78,7 @@ public:
 
 		for (std::size_t i{}; i < NUM_OF_TASKS; i++)
 		{
-			reduced_result = reduced_result + m_futures[i].get();
+			reduced_result = reduced_result + m_results[i];
 		}
 
 		return reduced_result;
@@ -117,7 +95,7 @@ public:
 
 		for (std::size_t i{}; i < NUM_OF_TASKS; i++)
 		{
-			reduced_result = combine(reduced_result, m_futures[i].get());
+			reduced_result = combine(reduced_result, m_results[i]);
 		}
 
 		return reduced_result;

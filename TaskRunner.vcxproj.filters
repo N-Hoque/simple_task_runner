@@ -23,5 +23,8 @@
     <ClInclude Include="task_runner.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="task_runner_serial.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
