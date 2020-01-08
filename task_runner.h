@@ -6,28 +6,37 @@
 #ifndef TASK_RUNNER_H
 #define TASK_RUNNER_H
 
-#include <cstdlib>
 #include <array>
-#include <vector>
 #include <future>
 #include <thread>
 #include <functional>
 #include <type_traits>
 
-/*
- * A class for running multiple tasks on multiple threads
- * that have the same function signature.
- */
-template<class TFunction, size_t NUM_OF_TASKS>
+ /*
+  * A class for running multiple tasks on multiple threads
+  * that have the same function signature.
+  */
+template <class TFunction, size_t NUM_OF_TASKS>
 class task_runner
 {
 private:
-	using TReturn = typename std::function<TFunction>::result_type;
+	using Function = std::function<TFunction>;
 
-	std::array<std::packaged_task<TFunction>, NUM_OF_TASKS> m_tasks;
-	std::array<std::future<TReturn>, NUM_OF_TASKS> m_futures;
-	std::array<std::thread, NUM_OF_TASKS> m_threads;
-	std::array<TReturn, NUM_OF_TASKS> m_results{};
+	using Result = typename Function::result_type;
+
+	using Task = std::packaged_task<TFunction>;
+	using Future = std::future<Result>;
+	using Thread = std::thread;
+
+	template <class T>
+	using FixedArray = std::array<T, NUM_OF_TASKS>;
+
+	using ReduceFunction = Result(*)(Result, Result);
+
+	FixedArray<Task>   m_tasks;
+	FixedArray<Future> m_futures{};
+	FixedArray<Thread> m_threads;
+	FixedArray<Result> m_results{};
 
 public:
 	task_runner() = default;
@@ -35,24 +44,58 @@ public:
 	/*
 	 * Sets the tasks here. This is for compile-time task setup
 	 */
-	void set_tasks_fixed(const std::array<std::function<TFunction>, NUM_OF_TASKS> &functions)
+	void set_tasks_fixed(FixedArray<Function> &&functions)
 	{
 		for (std::size_t i{}; i < NUM_OF_TASKS; i++)
 		{
-			m_tasks[i] = std::packaged_task<TFunction>(functions[i]);
+			m_tasks[i] = Task(functions[i]);
 			m_futures[i] = m_tasks[i].get_future();
+		}
+	}
+
+	/*
+	 * Sets the tasks here. This is for compile-time task setup
+	 */
+	template <typename TIterator>
+	void set_tasks_fixed(const TIterator &functions_begin, const TIterator &functions_end)
+	{
+		size_t i{};
+		for (TIterator it = functions_begin; it != functions_end; ++it)
+		{
+			m_tasks[i] = Task(*it);
+			m_futures[i] = m_tasks[i].get_future();
+			++i;
+		}
+	}
+
+	/*
+	 * Sets the tasks here. This is for runtime task setup.
+	 * Takes as a type argument anything that implements an iterator.
+	 */
+	template<template<class...> class TContainer>
+	void set_tasks_dynamic(TContainer<Function> &&functions)
+	{
+		size_t i{};
+		for (auto it = functions.begin(); it != functions.end(); ++it)
+		{
+			m_tasks[i] = Task(*it);
+			m_futures[i] = m_tasks[i].get_future();
+			++i;
 		}
 	}
 
 	/*
 	 * Sets the tasks here. This is for runtime task setup
 	 */
-	void set_tasks_dynamic(const std::vector<std::function<TFunction>> &functions)
+	template <typename TIterator>
+	void set_tasks_dynamic(const TIterator &functions_begin, const TIterator &functions_end)
 	{
-		for (std::size_t i{}; i < NUM_OF_TASKS; i++)
+		size_t i{};
+		for (TIterator it = functions_begin; it != functions_end; ++it)
 		{
-			m_tasks[i] = std::packaged_task<TFunction>(functions[i]);
+			m_tasks[i] = Task(*it);
 			m_futures[i] = m_tasks[i].get_future();
+			++i;
 		}
 	}
 
@@ -60,12 +103,12 @@ public:
 	 * This runs all the tasks. Tasks must have been set up before
 	 * running this method.
 	 */
-	template<typename... TArgs>
-	void run_tasks(TArgs... args)
+	template <typename... TArgs>
+	void run_tasks(TArgs ...args)
 	{
 		for (std::size_t i{}; i < NUM_OF_TASKS; i++)
 		{
-			m_threads[i] = std::thread(std::move(m_tasks[i]), args...);
+			m_threads[i] = Thread(std::move(m_tasks[i]), args...);
 			m_threads[i].join();
 		}
 	}
@@ -73,7 +116,7 @@ public:
 	/*
 	 * Returns an array of futures after running the tasks.
 	 */
-	std::array<std::future<TReturn>, NUM_OF_TASKS> get_futures()
+	FixedArray<Future> get_futures()
 	{
 		return m_futures;
 	}
@@ -81,7 +124,7 @@ public:
 	/*
 	 * Returns the results of the futures after running the tasks.
 	 */
-	std::array<TReturn, NUM_OF_TASKS> get_results()
+	FixedArray<Result> get_results()
 	{
 		for (std::size_t i{}; i < NUM_OF_TASKS; i++)
 		{
@@ -95,9 +138,9 @@ public:
 	 * Reduces the results into a single value after running the tasks.
 	 * Do not run get_results and this method together, otherwise an error will occur.
 	 */
-	TReturn reduce_results()
+	Result reduce_results()
 	{
-		TReturn reduced_result{};
+		Result reduced_result{};
 
 		for (std::size_t i{}; i < NUM_OF_TASKS; i++)
 		{
@@ -112,9 +155,9 @@ public:
 	 * This uses a custom combine function for reducing the results.
 	 * Do not run get_results and this method together, otherwise an error will occur.
 	 */
-	TReturn reduce_results(TReturn(*combine)(TReturn, TReturn))
+	Result reduce_results(const ReduceFunction combine)
 	{
-		TReturn reduced_result{};
+		Result reduced_result{};
 
 		for (std::size_t i{}; i < NUM_OF_TASKS; i++)
 		{
